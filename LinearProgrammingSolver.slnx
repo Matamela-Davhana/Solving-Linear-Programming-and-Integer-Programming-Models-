@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="LinearProgrammingSolver.App/LinearProgrammingSolver.App.csproj" />
+  <Project Path="LinearProgrammingSolver.Core/LinearProgrammingSolver.Core.csproj" />
+  <Project Path="LinearProgrammingSolver.Tests/LinearProgrammingSolver.Tests.csproj" />
+</Solution>
