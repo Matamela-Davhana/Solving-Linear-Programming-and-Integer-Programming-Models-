@@ -5,7 +5,6 @@ namespace LinearProgrammingSolver.App.UI
 {
     public class InputParser
     {
-        //THIS is the public method that Program.cs is looking for!
         public void ParseFile(string filePath)
         {
             if (!File.Exists(filePath))
