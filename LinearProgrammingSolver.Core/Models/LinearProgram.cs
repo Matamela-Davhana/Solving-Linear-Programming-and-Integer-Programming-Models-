@@ -52,7 +52,7 @@ namespace LinearProgrammingSolver.Core
                 }
                 else if (c.Relation == Relation.Equal)
                 {
-                    Variables.Add(new Variable($"a{artificialCount++}", VariableType.Artificial))
+                    Variables.Add(new Variable($"a{artificialCount++}", VariableType.Artificial));
                 }
             }
     }
