@@ -1,5 +1,6 @@
 ﻿using System;
-using LinearProgrammingSolver.App.UI;
+using LinearProgrammingSolver.App.IO;
+using LinearProgrammingSolver.Core.Sensitivity;
 
 namespace LinearProgrammingSolver.App
 {
@@ -96,6 +97,10 @@ namespace LinearProgrammingSolver.App
 
         static void SensitivityAnalysisMenu()
         {
+            SensitivityAnalyzer sensAnalyzer = new SensitivityAnalyzer();
+            DualityAnalyzer dualAnalyzer = new DualityAnalyzer();
+            double[] dummyObjectiveRow = new double[] { };
+            double[][] dummyMatrix = new double[][] { };
             bool back = false;
             while (!back)
             {
@@ -103,26 +108,82 @@ namespace LinearProgrammingSolver.App
                 Console.WriteLine("==================================================");
                 Console.WriteLine("           Sensitivity Analysis & Duality         ");
                 Console.WriteLine("==================================================");
-                Console.WriteLine("1. Variable Ranges / Changes");
-                Console.WriteLine("2. RHS Ranges / Changes");
-                Console.WriteLine("3. Shadow Prices");
-                Console.WriteLine("4. Add Activity (Variable) / Add Constraint");
-                Console.WriteLine("5. Duality (Construct Dual, Solve, Verify)");
-                Console.WriteLine("6. Return to Main Menu");
+                Console.WriteLine("1. Range / Change: Non-Basic Variable");
+                Console.WriteLine("2. Range / Change: Basic Variable");
+                Console.WriteLine("3. Range / Change: Constraint RHS");
+                Console.WriteLine("4. Shadow Prices");
+                Console.WriteLine("5. Add New Activity (Variable)");
+                Console.WriteLine("6. Add New Constraint");
+                Console.WriteLine("7. Duality (Construct, Solve, Verify)");
+                Console.WriteLine("8. Return to Main Menu");
                 Console.WriteLine("==================================================");
-                Console.Write("Select an operation (1-6): ");
+                Console.Write("Select an operation (1-8): ");
 
                 string choice = Console.ReadLine();
 
-                if (choice == "6")
+                switch (choice)
                 {
-                    back = true;
-                }
-                else
-                {
-                    Console.WriteLine($"\n[Executing Sensitivity Option {choice} ...]");
-                    // TODO: Hook up your Sensitivity modules here
-                    Pause();
+                    case "1":
+                        Console.Write("Enter Non-Basic Variable Index (e.g., 1 for X1): ");
+                        if (int.TryParse(Console.ReadLine(), out int nbVarIndex))
+                        {
+                            sensAnalyzer.DisplayNonBasicVariableRange(nbVarIndex, dummyObjectiveRow, dummyMatrix);
+                            Console.Write("Enter new coefficient value to apply change: ");
+                            if (double.TryParse(Console.ReadLine(), out double nbNewVal))
+                                sensAnalyzer.ApplyNonBasicVariableChange(nbVarIndex, nbNewVal);
+                        }
+                        Pause();
+                        break;
+                    case "2":
+                        Console.Write("Enter Basic Variable Index: ");
+                        if (int.TryParse(Console.ReadLine(), out int bVarIndex))
+                        {
+                            sensAnalyzer.DisplayBasicVariableRange(bVarIndex, dummyObjectiveRow, dummyMatrix);
+                            Console.Write("Enter new coefficient value to apply change: ");
+                            if (double.TryParse(Console.ReadLine(), out double bNewVal))
+                                sensAnalyzer.ApplyBasicVariableChange(bVarIndex, bNewVal);
+                        }
+                        Pause();
+                        break;
+                    case "3":
+                        Console.Write("Enter Constraint Index: ");
+                        if (int.TryParse(Console.ReadLine(), out int constraintIndex))
+                        {
+                            sensAnalyzer.DisplayRHSRange(constraintIndex, dummyObjectiveRow, dummyMatrix);
+                            Console.Write("Enter new RHS value to apply change: ");
+                            if (double.TryParse(Console.ReadLine(), out double newRHS))
+                                sensAnalyzer.ApplyRHSChange(constraintIndex, newRHS);
+                        }
+                        Pause();
+                        break;
+                    case "4":
+                        sensAnalyzer.DisplayShadowPrices(dummyObjectiveRow);
+                        Pause();
+                        break;
+                    case "5":
+                        Console.WriteLine("Capturing new activity data...");
+                        // In reality we will loop to get all coefficients but we'll pass dummies for the shell
+                        sensAnalyzer.AddNewActivity(new double[] { 1, 2, 3 }, 50);
+                        Pause();
+                        break;
+                    case "6":
+                        Console.WriteLine("Capturing new constraint data...");
+                        sensAnalyzer.AddNewConstraint(new double[] { 1, 2, 3 }, "<=", 100);
+                        Pause();
+                        break;
+                    case "7":
+                        object dualModel = dualAnalyzer.ConstructDualModel(null); // Passes dummy null for now
+                        dualAnalyzer.SolveDualModel(dualModel);
+                        dualAnalyzer.VerifyDuality(150.5, 150.5); // Hardcoded test values
+                        Pause();
+                        break;
+                    case "8":
+                        back = true;
+                        break;
+                    default:
+                        Console.WriteLine("Invalid selection.");
+                        Pause();
+                        break;
                 }
             }
         }
