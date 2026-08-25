@@ -1,9 +1,8 @@
 using System.Collections.Generic;
 
-namespace LinearProgrammingSolver.Core
+namespace LinearProgrammingSolver.Core.Models
 {
-    //holds the optimized objective function and original coefficients c
-    public enum OptimizationType
+    public enum ObjectiveType
     {
         Maximize,
         Minimize
@@ -11,12 +10,12 @@ namespace LinearProgrammingSolver.Core
 
     public class ObjectiveFunction
     {
-        public OptimizationType optimizationType {  get; set; }
-        public List<double> Coefficients { get; set; } = new List<double> ();
+        public ObjectiveType Type { get; set; }
+        public List<double> Coefficients { get; set; } = new List<double>();
 
-        public ObjectiveFunction(OptimizationType optimizationtype, List<double> coefficients)
+        public ObjectiveFunction(ObjectiveType type, List<double> coefficients)
         {
-            optimizationType = optimizationtype;
+            Type = type;
             Coefficients = coefficients;
         }
     }

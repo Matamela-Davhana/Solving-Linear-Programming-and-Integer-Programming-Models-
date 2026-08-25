@@ -1,7 +1,7 @@
 ﻿using System;
 using System.IO;
 
-namespace LinearProgrammingSolver.App.UI
+namespace LinearProgrammingSolver.App.IO
 {
     public class InputParser
     {
