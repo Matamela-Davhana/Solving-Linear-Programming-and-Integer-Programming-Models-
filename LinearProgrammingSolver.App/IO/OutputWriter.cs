@@ -1,9 +1,10 @@
 ﻿using System;
 using System.IO;
+using LinearProgrammingSolver.Core.IO; //importing interface in Solver.Core folder
 
-namespace LinearProgrammingSolver.App.UI
+namespace LinearProgrammingSolver.App.IO
 {
-    public class OutputWriter
+    public class OutputWriter : IOutputWriter
     {
         private string _outputPath;
 
