@@ -115,9 +115,7 @@ namespace LinearProgrammingSolver.App
                         Console.WriteLine("\n[Algorithm pending implementation by Group Member 3]");
                         Pause();
                         break;                    
-                        Console.WriteLine("\n[Algorithm pending implementation by Group Members 2 & 3]");
-                        Pause();
-                        break;
+                        
                     case "7":
                         SensitivityAnalysisMenu();
                         break;
