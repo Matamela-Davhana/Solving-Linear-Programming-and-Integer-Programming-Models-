@@ -63,5 +63,37 @@ namespace LinearProgrammingSolver.Core.Models
                 }
             }
         }
+
+        // Creates a deep copy of the LinearProgram instance
+        public LinearProgram Clone()
+        {
+            var clone = new LinearProgram
+            {
+                Objective = new ObjectiveFunction(this.Objective.Type, new List<double>(this.Objective.Coefficients)),
+                Variables = new List<Variable>(),
+                Constraints = new List<Constraint>()
+            };
+
+            foreach (var v in this.Variables)
+            {
+                clone.Variables.Add(new Variable(v.Name, v.Type, v.Restriction)
+                {
+                    LowerBound = v.LowerBound,
+                    UpperBound = v.UpperBound
+                });
+            }
+
+            foreach (var c in this.Constraints)
+            {
+                clone.Constraints.Add(new Constraint(
+                    c.Name,
+                    new List<double>(c.Coefficients),
+                    c.Relation,
+                    c.RHS
+                ));
+            }
+
+            return clone;
+        }
     }
 }

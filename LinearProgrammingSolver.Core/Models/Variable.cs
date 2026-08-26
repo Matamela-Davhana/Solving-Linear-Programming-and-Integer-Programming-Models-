@@ -10,9 +10,11 @@ namespace LinearProgrammingSolver.Core.Models
 
     public enum SignRestriction
     {
-        Positive,    // x >= 0
-        Negative,    // x <= 0
-        Unrestricted // urs
+        Positive,    // +
+        Negative,    // -
+        Unrestricted,// urs
+        Integer,     // int
+        Binary       // bin
     }
 
     public class Variable

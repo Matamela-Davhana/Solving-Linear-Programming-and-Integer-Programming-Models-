@@ -65,8 +65,56 @@ namespace LinearProgrammingSolver.App
                         Pause();
                         break;
                     case "4":
+                        if (CheckModelLoaded())
+                        {
+                            Console.WriteLine("\n[Running Branch & Bound Simplex...]");
+                            writer.ClearPreviousOutput();
+
+                            // 1. Initialize Role 1's Simplex Engine and your Branch & Bound Solver
+                            PrimalSimplexSolver simplexEngine = new PrimalSimplexSolver(writer);
+                            BranchAndBoundSimplexSolver bbSolver = new BranchAndBoundSimplexSolver(simplexEngine);
+
+                            // 2. Solve the problem
+                            BranchAndBoundNode bestCandidate = bbSolver.Solve(currentModel);
+
+                            // 3. Display Tree Summary & Fathomed Nodes to Console
+                            Console.WriteLine("\n==================================================");
+                            Console.WriteLine("             BRANCH & BOUND TREE SUMMARY          ");
+                            Console.WriteLine("==================================================");
+                            foreach (var node in bbSolver.AllNodes)
+                            {
+                                string parentStr = node.ParentId.HasValue ? $"Node {node.ParentId.Value}" : "Root";
+                                string statusStr = node.IsFathomed ? $"Fathomed ({node.FathomedBy})" : "Branched";
+                                Console.WriteLine($"Node {node.NodeId} (from {parentStr}) | Branch: {node.BranchingDescription,-15} | Z: {node.ObjectiveValue:F3} | Status: {statusStr}");
+                            }
+
+                            Console.WriteLine("==================================================");
+                            if (bestCandidate != null)
+                            {
+                                Console.WriteLine("OPTIMAL INTEGER CANDIDATE FOUND!");
+                                Console.WriteLine($"Best Node ID: Node {bestCandidate.NodeId}");
+                                Console.WriteLine($"Optimal Z Value: {bestCandidate.ObjectiveValue:F3}");
+                                Console.WriteLine("Variable Values:");
+                                for (int i = 0; i < bestCandidate.VariableValues.Length; i++)
+                                {
+                                    Console.WriteLine($"  x{i + 1} = {bestCandidate.VariableValues[i]:F3}");
+                                }
+                            }
+                            else
+                            {
+                                Console.WriteLine("No feasible integer solution exists (Model Infeasible).");
+                            }
+                            Console.WriteLine("==================================================");
+                            Console.WriteLine("All sub-problem iterations written to output file.");
+                        }
+                        Pause();
+                        break;
+
                     case "5":
                     case "6":
+                        Console.WriteLine("\n[Algorithm pending implementation by Group Member 3]");
+                        Pause();
+                        break;                    
                         Console.WriteLine("\n[Algorithm pending implementation by Group Members 2 & 3]");
                         Pause();
                         break;
