@@ -86,25 +86,20 @@ namespace LinearProgrammingSolver.App
 
         static void LoadModel()
         {
-            Console.WriteLine("\n--- Load Input File ---");
+            Console.Write("Enter the exact file path (e.g., C:\\Temp\\input.txt): ");
+            string filePath = Console.ReadLine();
 
-            string filePath = "";
-
-#if DEBUG
-            // Hardcoded for rapid debugging.
-            filePath = @"C:\Temp\input.txt";
-            Console.WriteLine($"[DEBUG MODE] Auto-loading test file from: {filePath}");
-//#else
-            Console.Write("Enter the exact file path (e.g., input.txt): ");
-            filePath = Console.ReadLine();
-#endif
-
-            Console.WriteLine($"\n[Attempting to load and parse {filePath} ...]");
             InputParser parser = new InputParser();
             currentModel = parser.ParseFile(filePath);
 
-            currentModel = new LinearProgram();
-            Console.WriteLine("\nModel successfully mapped to memory!");
+            if (currentModel != null)
+            {
+                Console.WriteLine("\nModel successfully mapped to memory!");
+            }
+            else
+            {
+                Console.WriteLine("\nError: Could not load or parse the file. Please check the path and try again.");
+            }
 
             Pause();
         }
