@@ -73,9 +73,6 @@ namespace LinearProgrammingSolver.Core.Algorithms
             double[] weights = knapsackConstraint.Coefficients.ToArray();
             double capacity = knapsackConstraint.RHS;
 
-            // These are obtained directly from the LP.
-            // They are not recreated by BnBKnapsack.
-
             Console.WriteLine();
             Console.WriteLine("Knapsack Problem");
             Console.WriteLine("----------------------------");
