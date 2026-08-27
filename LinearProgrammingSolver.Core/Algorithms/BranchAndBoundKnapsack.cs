@@ -132,7 +132,7 @@ namespace LinearProgrammingSolver.Core.Algorithms
 
                     if (!_isMaximize && current.ObjectiveValue >= _bestObjectiveValue - EPSILON)
                     {
-                        current.IsBrancheded = true;
+                        current.IsBranched = true;
                         current.BranchedBy = "Bound";
                         _subProblems.Add(current);
                         continue;
@@ -290,7 +290,7 @@ namespace LinearProgrammingSolver.Core.Algorithms
 
             if (model.Objective == null)
             {
-                throw new ArgumentException(Objective function is required.");
+                throw new ArgumentException("Objective function is required.");
             }
 
             if (model.Objective.Type != ObjectiveType.Maximize)
