@@ -116,7 +116,7 @@ namespace LinearProgrammingSolver.App
                     case "5":
                       if (CheckModelLoaded())
                          {
-                            Console.WriteLine("======================================================");
+                            Console.WriteLine("\n[Running Branch & Bound Knapsack...]");
                             writer.ClearPreviousOutput();
         
                             PrimalSimplexSolver simplexEngine = new PrimalSimplexSolver(writer);
@@ -131,16 +131,16 @@ namespace LinearProgrammingSolver.App
                     case "6":
                         if (CheckModelLoaded())
                            {
-                              Console.WriteLine("==================================================");
+                              Console.WriteLine("\n[Running Cutting Plane...]");
                               writer.ClearPreviousOutput();
                               
                               PrimalSimplexSolver simplexEngine = new PrimalSimplexSolver(writer);
                               CuttingPlaneSolver cuttingPlaneSolver = new CuttingPlaneSolver(simplexEngine);
                               
-                               SolverResult cuttingPlaneResult = cuttingPlaneSolver.Solve(currentModel);
-                               cuttingPlaneSolver.PrintResult(cuttingPlaneResult);
-                               globalResult = cuttingPlaneResult;
-                               Console.WriteLine("==================================================");
+                              SolverResult cuttingPlaneResult = cuttingPlaneSolver.Solve(currentModel);
+                              cuttingPlaneSolver.PrintResult(cuttingPlaneResult);
+                              globalResult = cuttingPlaneResult;
+                              Console.WriteLine("==================================================");
                             }
 
                          Pause();
