@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using LinearProgrammingSolver.Core.Algorithms
 using LinearProgrammingSolver.Core.Models;
-using LinearProgrammingSolver.Core.Results;
 
 namespace BranchAndBoundKnapsack
 {
