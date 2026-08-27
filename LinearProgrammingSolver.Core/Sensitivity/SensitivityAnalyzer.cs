@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 
 namespace LinearProgrammingSolver.Core.Sensitivity
 {
@@ -40,14 +41,29 @@ namespace LinearProgrammingSolver.Core.Sensitivity
         public void DisplayBasicVariableRange(int variableIndex, double[] optimalObjectiveRow, double[,] finalTableau)
         {
             Console.WriteLine($"\n--- Range for Basic Variable X{variableIndex} ---");
+
+            //Added to verify that the matrix and array exist to prevent runtime NullReferenceException
+            if(finalTableau == null || optimalObjectiveRow == null)
+            {
+                Console.WriteLine("Error: Null matrix or objective row provided.");
+                return;
+            }
+
             int targetVar = variableIndex - 1;
 
             int rows = finalTableau.GetLength(0);
             int cols = finalTableau.GetLength(1);
 
+            //Added: Check that requested variable index falls withing matrix bound
+            if(targetVar <0 || targetVar >= cols - 1)
+            {
+                Console.WriteLine($"Error: Variable index X{variableIndex} is out of bounds.");
+                return;
+            }
+
             // Find which tableau row this basic variable is sitting in
             int basicRow = -1;
-            for (int i = 1; i < rows; i++)
+            for (int i = 0; i < rows; i++)
             {
                 if (Math.Abs(finalTableau[i, targetVar] - 1.0) < 0.0001)
                 {
@@ -55,7 +71,7 @@ namespace LinearProgrammingSolver.Core.Sensitivity
                     break;
                 }
             }
-
+            //when variabe is non-basic
             if (basicRow == -1)
             {
                 Console.WriteLine("Error: This variable is NOT in the current basis.");
@@ -68,7 +84,7 @@ namespace LinearProgrammingSolver.Core.Sensitivity
 
             for (int j = 0; j < cols - 1; j++)
             {
-                if (optimalObjectiveRow[j] > 0.0001) // If it is a non-basic column
+                if (j < optimalObjectiveRow.Length && optimalObjectiveRow[j] > 0.0001) // If it is a non-basic column
                 {
                     double y_ij = finalTableau[basicRow, j]; // The matrix element
                     if (Math.Abs(y_ij) > 0.00001)
@@ -222,17 +238,95 @@ namespace LinearProgrammingSolver.Core.Sensitivity
         }
 
         // Add a new activity (variable) to an optimal solution
-        public void AddNewActivity(double[] newActivityCoefficients, double newObjectiveCoefficient)
+        public void AddNewActivity(double[] newActivityCoefficients, double newObjectiveCoefficient, double[] shadowPrices)
         {
             Console.WriteLine("\n--- Adding New Activity (Variable) ---");
-            // TODO (Math Logic): Price out the new activity. If negative (for max), pivot it in.
+            //(Math Logic): Price out the new activity.If negative(for max), pivot it in.
+
+            if (newActivityCoefficients == null || shadowPrices == null || newActivityCoefficients.Length != shadowPrices.Length)
+            {
+                Console.WriteLine("Error: Constraint coefficients count must match the number of shadow prices.");
+                return;
+            }
+
+            // Calculate z_new = sum(shadow_price_i * a_i_new)
+            double z_new = 0.0;
+            for (int i = 0; i < shadowPrices.Length; i++)
+            {
+                z_new += shadowPrices[i] * newActivityCoefficients[i];
+            }
+
+            // Reduced Cost: c_new - z_new (for Maximization)
+            double reducedCost = newObjectiveCoefficient - z_new;
+
+            Console.WriteLine($"New Activity Objective Coefficient (c_new): {newObjectiveCoefficient:F3}");
+            Console.WriteLine($"Evaluated Resource Cost (z_new = y * A_new): {z_new:F3}");
+            Console.WriteLine($"Calculated Reduced Cost: {reducedCost:F3}");
+
+            if (reducedCost > 0.0001)
+            {
+                Console.WriteLine("\nResult: The new activity is PROFITABLE (Reduced Cost > 0).");
+                Console.WriteLine("Action: Add this column to the LP model and re-run Primal Simplex to pivot this variable into the basis.");
+            }
+            else
+            {
+                Console.WriteLine("\nResult: The new activity is NOT profitable (Reduced Cost <= 0).");
+                Console.WriteLine("Action: The current optimal solution remains unchanged. The new variable will stay at 0.");
+            }
         }
 
         // Add a new constraint to an optimal solution
-        public void AddNewConstraint(double[] newConstraintCoefficients, string relation, double rhs)
+        public void AddNewConstraint(double[] newConstraintCoefficients, string relation, double rhs, double[] currentOptimalX)
         {
             Console.WriteLine("\n--- Adding New Constraint ---");
-            // TODO (Math Logic): Check if current optimal solution satisfies this. If not, Dual Simplex.
+            //(Math Logic): Check if current optimal solution satisfies this. If not, Dual Simplex.
+
+            if (newConstraintCoefficients == null || currentOptimalX == null || newConstraintCoefficients.Length > currentOptimalX.Length)
+            {
+                Console.WriteLine("Error: Coefficient dimensions do not match the current decision variables.");
+                return;
+            }
+
+            // Calculate Left-Hand Side (LHS) = sum(a_i * x_i*)
+            double lhs = 0.0;
+            for (int i = 0; i < newConstraintCoefficients.Length; i++)
+            {
+                lhs += newConstraintCoefficients[i] * currentOptimalX[i];
+            }
+
+            Console.WriteLine($"Evaluated LHS Value: {lhs:F3}");
+            Console.WriteLine($"Constraint Condition: {lhs:F3} {relation} {rhs:F3}");
+
+            bool isSatisfied = false;
+            switch (relation.Trim())
+            {
+                case "<=":
+                case "≤":
+                    isSatisfied = lhs <= rhs + 0.0001;
+                    break;
+                case ">=":
+                case "≥":
+                    isSatisfied = lhs >= rhs - 0.0001;
+                    break;
+                case "=":
+                case "==":
+                    isSatisfied = Math.Abs(lhs - rhs) < 0.0001;
+                    break;
+                default:
+                    Console.WriteLine($"Error: Unrecognized inequality relation '{relation}'.");
+                    return;
+            }
+
+            if (isSatisfied)
+            {
+                Console.WriteLine("\nResult: The current optimal solution SATISFIES the new constraint.");
+                Console.WriteLine("Action: The solution remains OPTIMAL and FEASIBLE without recalculation.");
+            }
+            else
+            {
+                Console.WriteLine("\nResult: The current optimal solution VIOLATES the new constraint.");
+                Console.WriteLine("Action: The current basis is now INFEASIBLE. Add a slack/surplus variable and apply Dual Simplex to restore feasibility.");
+            }
         }
 
         // Display the shadow prices
@@ -246,12 +340,15 @@ namespace LinearProgrammingSolver.Core.Sensitivity
                 return;
             }
             int numConstraints = optimalObjectiveRow.Length / 2; // Rough estimate based on standard LP
-            int startIndex = optimalObjectiveRow.Length - numConstraints;
+            int startIndex = Math.Max(0,optimalObjectiveRow.Length - numConstraints); //ensure startIndex is never -
+            
             Console.WriteLine("Shadow Prices (Dual Values) for Constraints:");
             for (int i = 0; i < numConstraints; i++)
             {
+                int targetIndex = startIndex + i;
+
                 // Check bounds just to be safe
-                if (startIndex + i < optimalObjectiveRow.Length)
+                if (targetIndex + i < optimalObjectiveRow.Length)
                 {
                     double shadowPrice = optimalObjectiveRow[startIndex + i];
                     Console.WriteLine($"Constraint {i + 1}: {shadowPrice.ToString("F3")}");
