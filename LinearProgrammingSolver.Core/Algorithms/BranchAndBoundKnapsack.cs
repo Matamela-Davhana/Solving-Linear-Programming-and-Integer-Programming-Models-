@@ -10,69 +10,7 @@ namespace BranchAndBoundKnapsack
         //constant
         private const double EPSILON = 1e-9;
 
-        //item
-        public class Item
-        {
-            public string Name { get; set; }
-            public double Profit { get; set; }
-            public double Weight { get; set; }
-
-            public double Ratio
-            {
-                get
-                {
-                    if (Weight <= 0)
-                        return double.PositiveInfinity;
-
-                    return Profit / Weight;
-                }
-            }
-
-
-            public KnapsackItem(string name, double profit, double weight)
-            {
-                Name = name;
-                Profit = profit;
-                Weight = weight;
-            }
-
-        }
-
-        //subproblem
-        public class SubProblem
-        {
-            //e.g 0, 1, 2, 1.1, 1.2, 2.1, 2.2, 1.1.1, etc.
-
-            public string Number { get; set; }
-            public string ParentNumber { get; set; } //parent subp
-            public int Level { get; set; } //level in bnb tree
-            public int BranchItemIndex { get; set; } // item used for branching
-            public double Weight { get; set; }
-            public double Profit { get; set; }
-            public double UpperBound { get; set; }
-            public List<int> SelectedItems { get; set; }
-            public string BranchDescription { get; set; }
-            public bool ContinueBranching { get; set; } //ISFATHOMED
-            public string BranchReason { get; set; } //FATHOMEDBY
-
-            public SubProblem(string number, string parentNumber, int level, int branchItemIndex, double weight,
-                              double profit, List<int> selectedItems, string branchDescription)
-            {
-                Number = number;
-                ParentNumber = parentNumber;
-                Level = level;
-                BranchItemIndex = branchItemIndex;
-                Weight = weight;
-                Profit = profit;
-                UpperBound = UpperBound;
-                SelectedItems = selectedItems;
-                BranchDescription = branchDescription;
-                ContinueBranching = false;
-                BranchReason = string.Empty;
-            }
-        }
-
-        //result
+//input here        //result
         public class Result
         {
             public bool IsOptimal { get; set; }
