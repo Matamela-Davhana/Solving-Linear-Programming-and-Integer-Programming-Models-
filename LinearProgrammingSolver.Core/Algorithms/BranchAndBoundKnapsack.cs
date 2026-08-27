@@ -6,7 +6,7 @@ using LinearProgrammingSolver.Core.Results;
 
 namespace LinearProgrammingSolver.Core.Algorithms
 {
-    public class BnBKnapsackSolver
+    public class BnBKnapsack
     {
         private const double EPSILON = 1e-6;
         private readonly PrimalSimplexSolver _simplexSolver;
