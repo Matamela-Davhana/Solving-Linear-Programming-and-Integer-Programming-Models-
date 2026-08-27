@@ -42,6 +42,7 @@ namespace LinearProgrammingSolver.App
                     case "1":
                         LoadModel();
                         break;
+                        
                     case "2":
                         if (CheckModelLoaded())
                         {
@@ -53,6 +54,7 @@ namespace LinearProgrammingSolver.App
                         }
                         Pause();
                         break;
+                        
                     case "3":
                         if (CheckModelLoaded())
                         {
@@ -64,6 +66,7 @@ namespace LinearProgrammingSolver.App
                         }
                         Pause();
                         break;
+                        
                     case "4":
                         if (CheckModelLoaded())
                         {
@@ -113,21 +116,35 @@ namespace LinearProgrammingSolver.App
                     case "5":
                       if (CheckModelLoaded())
                          {
-                            Console.WriteLine("\n[Running Branch & Bound Knapsack...]");
+                            Console.WriteLine("======================================================");
                             writer.ClearPreviousOutput();
         
                             PrimalSimplexSolver simplexEngine = new PrimalSimplexSolver(writer);
                             BnBKnapsack knapsackSolver = new BnBKnapsack(simplexEngine);
                             BnBKnapsack.Result knapsackResult = knapsackSolver.Solve(currentModel);
                             knapsackSolver.PrintResult(knapsackResult);
+                            Console.WriteLine("====================================================");
                           }
                           Pause();
                           break;
 
                     case "6":
-                        Console.WriteLine("\n[Algorithm pending implementation by Group Member 3]");
-                        Pause();
-                        break;                    
+                        if (CheckModelLoaded())
+                           {
+                              Console.WriteLine("==================================================");
+                              writer.ClearPreviousOutput();
+                              
+                              PrimalSimplexSolver simplexEngine = new PrimalSimplexSolver(writer);
+                              CuttingPlaneSolver cuttingPlaneSolver = new CuttingPlaneSolver(simplexEngine);
+                              
+                               SolverResult cuttingPlaneResult = cuttingPlaneSolver.Solve(currentModel);
+                               cuttingPlaneSolver.PrintResult(cuttingPlaneResult);
+                               globalResult = cuttingPlaneResult;
+                               Console.WriteLine("==================================================");
+                            }
+
+                         Pause();
+                         break;
                         
                     case "7":
                         SensitivityAnalysisMenu();
