@@ -1,12 +1,20 @@
-﻿using System;
+﻿using LinearProgrammingSolver.Core.Algorithms;
 using LinearProgrammingSolver.Core.Models;
+using LinearProgrammingSolver.Core.Results;
+using System;
+using System.Threading.Channels;
 
 namespace LinearProgrammingSolver.Core.Sensitivity
 {
     public class DualityAnalyzer
-    {
-        // Puleng: 
+    { 
         // This handles the Dual conversion.
+        private readonly PrimalSimplexSolver _simplexSolver; //simplex solver dependency to execute final LP
+
+        public DualityAnalyzer(PrimalSimplexSolver simplexSolver) //Consrtuctor Injection
+        {
+            _simplexSolver = simplexSolver;
+        }
 
         // Apply/Construct Duality to the programming model
         public LinearProgram ConstructDualModel(LinearProgram primal)
@@ -62,11 +70,19 @@ namespace LinearProgrammingSolver.Core.Sensitivity
             return dual;
         }
 
-        // Solve the Dual Programming Model
-        public void SolveDualModel(object dualLinearProgram)
+        // Solve the Dual Programming Model:Updated
+        //Changed parameter type from generic object to LinearProgram
+        public SolverResult SolveDualModel(LinearProgram dualLinearProgram)
         {
             Console.WriteLine("\n--- Solving Dual Model ---");
-            // TODO: Pass the dual model into Member 1's Simplex algorithm.
+            if (dualLinearProgram == null)
+            {
+                Console.WriteLine("Error: Dual model is null.");
+                return null;
+            }
+
+            //Direct call to solve the generated dual model
+            return _simplexSolver.Solve(dualLinearProgram);
         }
 
         // Verify whether the Programming Model has Strong or Weak Duality

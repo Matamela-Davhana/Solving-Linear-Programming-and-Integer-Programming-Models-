@@ -164,6 +164,7 @@ namespace LinearProgrammingSolver.App
         {
             Console.Write("Enter the exact file path (e.g., C:\\Temp\\input.txt): ");
             string filePath = Console.ReadLine();
+            //string filePath = Console.ReadLine() ?? string.Empty;
 
             InputParser parser = new InputParser();
             currentModel = parser.ParseFile(filePath);
@@ -206,7 +207,10 @@ namespace LinearProgrammingSolver.App
             double[,] realFinalTableau = globalResult.FinalTableau;
 
             SensitivityAnalyzer sensAnalyzer = new SensitivityAnalyzer();
-            DualityAnalyzer dualAnalyzer = new DualityAnalyzer();
+
+            //DualityAnalyzer dualAnalyzer = new DualityAnalyzer();
+            PrimalSimplexSolver solverForDuality = new PrimalSimplexSolver(writer);
+            DualityAnalyzer dualAnalyzer = new DualityAnalyzer(solverForDuality);
 
             bool back = false;
             while (!back)
@@ -256,10 +260,23 @@ namespace LinearProgrammingSolver.App
                         Console.Write("Enter Constraint Index: ");
                         if (int.TryParse(Console.ReadLine(), out int constraintIndex))
                         {
-                            double[] originalRHS = new double[currentModel.Constraints.Count];
-                            for (int i = 0; i < currentModel.Constraints.Count; i++)
+                            //double[] originalRHS = new double[currentModel.Constraints.Count];
+                            //for (int i = 0; i < currentModel.Constraints.Count; i++)
+                            //{
+                            //    originalRHS[i] = currentModel.Constraints[i].RHS;
+                            //}
+
+                            //Addition; conditional checks to prevent NullReference
+                            double[] originalRHS = currentModel?.Constraints != null
+                                ? new double[currentModel.Constraints.Count]
+                                : Array.Empty<double>();
+
+                            if (currentModel?.Constraints != null)
                             {
-                                originalRHS[i] = currentModel.Constraints[i].RHS;
+                                for (int i = 0; i < currentModel.Constraints.Count; i++)
+                                {
+                                    originalRHS[i] = currentModel.Constraints[i].RHS;
+                                }
                             }
 
                             sensAnalyzer.DisplayRHSRange(constraintIndex, originalRHS, realInverseBasis);
@@ -275,12 +292,14 @@ namespace LinearProgrammingSolver.App
                         break;
                     case "5":
                         Console.WriteLine("Capturing new activity data...");
-                        sensAnalyzer.AddNewActivity(new double[] { 1, 2, 3 }, 50);
+                        //sensAnalyzer.AddNewActivity(new double[] { 1, 2, 3 }, 50);
+                        sensAnalyzer.AddNewActivity(new double[] { 1, 2, 3 }, 50, globalResult.ShadowPrices ?? Array.Empty<double>());
                         Pause();
                         break;
                     case "6":
                         Console.WriteLine("Capturing new constraint data...");
-                        sensAnalyzer.AddNewConstraint(new double[] { 1, 2, 3 }, "<=", 100);
+                        //sensAnalyzer.AddNewConstraint(new double[] { 1, 2, 3 }, "<=", 100);
+                        sensAnalyzer.AddNewConstraint(new double[] { 1, 2, 3 }, "<=", 100, globalResult.VariableValues ?? Array.Empty<double>());
                         Pause();
                         break;
                     case "7":
