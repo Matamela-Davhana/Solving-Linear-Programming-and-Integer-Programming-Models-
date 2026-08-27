@@ -111,6 +111,19 @@ namespace LinearProgrammingSolver.App
                         break;
 
                     case "5":
+                      if (CheckModelLoaded())
+                         {
+                            Console.WriteLine("\n[Running Branch & Bound Knapsack...]");
+                            writer.ClearPreviousOutput();
+        
+                            PrimalSimplexSolver simplexEngine = new PrimalSimplexSolver(writer);
+                            BnBKnapsack knapsackSolver = new BnBKnapsack(simplexEngine);
+                            BnBKnapsack.Result knapsackResult = knapsackSolver.Solve(currentModel);
+                            knapsackSolver.PrintResult(knapsackResult);
+                          }
+                          Pause();
+                          break;
+
                     case "6":
                         Console.WriteLine("\n[Algorithm pending implementation by Group Member 3]");
                         Pause();
