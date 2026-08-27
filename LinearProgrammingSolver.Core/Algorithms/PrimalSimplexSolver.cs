@@ -186,11 +186,11 @@ namespace LinearProgrammingSolver.Core.Algorithms
             double[,] inverseBasis = new double[numConstraints, numConstraints];
             for (int i = 0; i < numConstraints; i++)
             {
-                inverseBasis[i] = new double[numConstraints];
-                for (int j = 0; j < numConstraints; j++)
+                for(int j = 0; j < numConstraints; j++)
                 {
-                    inverseBasis[i,j] = tableau[i + 1, lp.NumDecisionVariables + j];
+                    inverseBasis[i, j] = tableau[i + 1, lp.NumDecisionVariables + j];
                 }
+                
             }
 
             return new SolverResult
