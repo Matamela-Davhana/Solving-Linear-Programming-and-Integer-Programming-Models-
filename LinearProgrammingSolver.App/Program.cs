@@ -1,11 +1,17 @@
 ﻿using System;
 using LinearProgrammingSolver.App.IO;
+using LinearProgrammingSolver.Core.Algorithms;
+using LinearProgrammingSolver.Core.Models;
+using LinearProgrammingSolver.Core.Results;
 using LinearProgrammingSolver.Core.Sensitivity;
 
 namespace LinearProgrammingSolver.App
 {
     class Program
     {
+        static LinearProgram currentModel = null;
+        static OutputWriter writer = new OutputWriter(@"C:\Temp\output.txt");
+        static SolverResult globalResult = null;
         static void Main(string[] args)
         {
             bool exit = false;
@@ -15,6 +21,8 @@ namespace LinearProgrammingSolver.App
                 Console.Clear();
                 Console.WriteLine("==================================================");
                 Console.WriteLine("       LP / IP Solver - Project LPR381            ");
+                Console.WriteLine("==================================================");
+                Console.WriteLine($"Current Model Loaded: {(currentModel != null ? "YES" : "NO")}");
                 Console.WriteLine("==================================================");
                 Console.WriteLine("1. Load Programming Model from Text File");
                 Console.WriteLine("2. Solve: Primal Simplex");
@@ -34,31 +42,110 @@ namespace LinearProgrammingSolver.App
                     case "1":
                         LoadModel();
                         break;
+                        
                     case "2":
-                        Console.WriteLine("\n[Running Primal Simplex...]");
-                        // TODO: Call Role 1's Primal Simplex algorithm
+                        if (CheckModelLoaded())
+                        {
+                            Console.WriteLine("\n[Running Primal Simplex...]");
+                            writer.ClearPreviousOutput();
+                            PrimalSimplexSolver primalSolver = new PrimalSimplexSolver(writer);
+                            globalResult = primalSolver.Solve(currentModel);
+                            Console.WriteLine($"\nSolve Complete! Status: {globalResult.Status}. Check output.txt");
+                        }
                         Pause();
                         break;
+                        
                     case "3":
-                        Console.WriteLine("\n[Running Revised Primal Simplex...]");
-                        // TODO: Call Role 1's Revised Simplex algorithm
+                        if (CheckModelLoaded())
+                        {
+                            Console.WriteLine("\n[Running Revised Primal Simplex...]");
+                            writer.ClearPreviousOutput();
+                            RevisedSimplexSolver revisedSolver = new RevisedSimplexSolver(writer);
+                            SolverResult result = revisedSolver.Solve(currentModel);
+                            Console.WriteLine($"\nSolve Complete! Status: {result.Status}. Check output.txt");
+                        }
                         Pause();
                         break;
+                        
                     case "4":
-                        Console.WriteLine("\n[Running Branch & Bound Simplex...]");
-                        // TODO: Call Role 2's B&B logic
+                        if (CheckModelLoaded())
+                        {
+                            Console.WriteLine("\n[Running Branch & Bound Simplex...]");
+                            writer.ClearPreviousOutput();
+
+                            // 1. Initialize Role 1's Simplex Engine and your Branch & Bound Solver
+                            PrimalSimplexSolver simplexEngine = new PrimalSimplexSolver(writer);
+                            BranchAndBoundSimplexSolver bbSolver = new BranchAndBoundSimplexSolver(simplexEngine);
+
+                            // 2. Solve the problem
+                            BranchAndBoundNode bestCandidate = bbSolver.Solve(currentModel);
+
+                            // 3. Display Tree Summary & Fathomed Nodes to Console
+                            Console.WriteLine("\n==================================================");
+                            Console.WriteLine("             BRANCH & BOUND TREE SUMMARY          ");
+                            Console.WriteLine("==================================================");
+                            foreach (var node in bbSolver.AllNodes)
+                            {
+                                string parentStr = node.ParentId.HasValue ? $"Node {node.ParentId.Value}" : "Root";
+                                string statusStr = node.IsFathomed ? $"Fathomed ({node.FathomedBy})" : "Branched";
+                                Console.WriteLine($"Node {node.NodeId} (from {parentStr}) | Branch: {node.BranchingDescription,-15} | Z: {node.ObjectiveValue:F3} | Status: {statusStr}");
+                            }
+
+                            Console.WriteLine("==================================================");
+                            if (bestCandidate != null)
+                            {
+                                Console.WriteLine("OPTIMAL INTEGER CANDIDATE FOUND!");
+                                Console.WriteLine($"Best Node ID: Node {bestCandidate.NodeId}");
+                                Console.WriteLine($"Optimal Z Value: {bestCandidate.ObjectiveValue:F3}");
+                                Console.WriteLine("Variable Values:");
+                                for (int i = 0; i < bestCandidate.VariableValues.Length; i++)
+                                {
+                                    Console.WriteLine($"  x{i + 1} = {bestCandidate.VariableValues[i]:F3}");
+                                }
+                            }
+                            else
+                            {
+                                Console.WriteLine("No feasible integer solution exists (Model Infeasible).");
+                            }
+                            Console.WriteLine("==================================================");
+                            Console.WriteLine("All sub-problem iterations written to output file.");
+                        }
                         Pause();
                         break;
+
                     case "5":
-                        Console.WriteLine("\n[Running Branch & Bound Knapsack...]");
-                        // TODO: Call Role 3's Knapsack logic
-                        Pause();
-                        break;
+                      if (CheckModelLoaded())
+                         {
+                            Console.WriteLine("\n[Running Branch & Bound Knapsack...]");
+                            writer.ClearPreviousOutput();
+        
+                            PrimalSimplexSolver simplexEngine = new PrimalSimplexSolver(writer);
+                            BnBKnapsack knapsackSolver = new BnBKnapsack(simplexEngine);
+                            BnBKnapsack.Result knapsackResult = knapsackSolver.Solve(currentModel);
+                            knapsackSolver.PrintResult(knapsackResult);
+                            Console.WriteLine("====================================================");
+                          }
+                          Pause();
+                          break;
+
                     case "6":
-                        Console.WriteLine("\n[Running Cutting Plane...]");
-                        // TODO: Call Role 3's Cutting Plane logic
-                        Pause();
-                        break;
+                        if (CheckModelLoaded())
+                           {
+                              Console.WriteLine("\n[Running Cutting Plane...]");
+                              writer.ClearPreviousOutput();
+                              
+                              PrimalSimplexSolver simplexEngine = new PrimalSimplexSolver(writer);
+                              CuttingPlaneSolver cuttingPlaneSolver = new CuttingPlaneSolver(simplexEngine);
+                              
+                              SolverResult cuttingPlaneResult = cuttingPlaneSolver.Solve(currentModel);
+                              cuttingPlaneSolver.PrintResult(cuttingPlaneResult);
+                              globalResult = cuttingPlaneResult;
+                              Console.WriteLine("==================================================");
+                            }
+
+                         Pause();
+                         break;
+                        
                     case "7":
                         SensitivityAnalysisMenu();
                         break;
@@ -66,7 +153,7 @@ namespace LinearProgrammingSolver.App
                         exit = true;
                         break;
                     default:
-                        Console.WriteLine("\nInvalid selection. Please enter a number between 1 and 8.");
+                        Console.WriteLine("\nInvalid selection.");
                         Pause();
                         break;
                 }
@@ -75,32 +162,52 @@ namespace LinearProgrammingSolver.App
 
         static void LoadModel()
         {
-            Console.WriteLine("\n--- Load Input File ---");
+            Console.Write("Enter the exact file path (e.g., C:\\Temp\\input.txt): ");
+            string filePath = Console.ReadLine();
 
-            string filePath = "";
-
-#if DEBUG
-            // Hardcoded for rapid debugging.
-            filePath = @"C:\Temp\input.txt";
-            Console.WriteLine($"[DEBUG MODE] Auto-loading test file from: {filePath}");
-//#else
-            Console.Write("Enter the exact file path (e.g., input.txt): ");
-            filePath = Console.ReadLine();
-#endif
-
-            Console.WriteLine($"\n[Attempting to load and parse {filePath} ...]");
             InputParser parser = new InputParser();
-            parser.ParseFile(filePath);
+            currentModel = parser.ParseFile(filePath);
+
+            if (currentModel != null)
+            {
+                Console.WriteLine("\nModel successfully mapped to memory!");
+            }
+            else
+            {
+                Console.WriteLine("\nError: Could not load or parse the file. Please check the path and try again.");
+            }
 
             Pause();
         }
 
+        static bool CheckModelLoaded()
+        {
+            if (currentModel == null)
+            {
+                Console.WriteLine("\nError: You must load a model (Option 1) first!");
+                return false;
+            }
+            return true;
+        }
+
         static void SensitivityAnalysisMenu()
         {
+            // Guard Clause: Ensure we actually have optimal math data to work with
+            if (globalResult == null || globalResult.Status != SolutionStatus.Optimal)
+            {
+                Console.WriteLine("\nError: You must run a Simplex algorithm and find an Optimal solution first!");
+                Pause();
+                return;
+            }
+
+            // Extract the REAL data generated by Simplex engine
+            double[] realObjectiveRow = globalResult.OptimalObjectiveRow;
+            double[,] realInverseBasis = globalResult.InverseBasis;
+            double[,] realFinalTableau = globalResult.FinalTableau;
+
             SensitivityAnalyzer sensAnalyzer = new SensitivityAnalyzer();
             DualityAnalyzer dualAnalyzer = new DualityAnalyzer();
-            double[] dummyObjectiveRow = new double[] { };
-            double[][] dummyMatrix = new double[][] { };
+
             bool back = false;
             while (!back)
             {
@@ -127,7 +234,7 @@ namespace LinearProgrammingSolver.App
                         Console.Write("Enter Non-Basic Variable Index (e.g., 1 for X1): ");
                         if (int.TryParse(Console.ReadLine(), out int nbVarIndex))
                         {
-                            sensAnalyzer.DisplayNonBasicVariableRange(nbVarIndex, dummyObjectiveRow, dummyMatrix);
+                            sensAnalyzer.DisplayNonBasicVariableRange(nbVarIndex, realObjectiveRow, realFinalTableau);
                             Console.Write("Enter new coefficient value to apply change: ");
                             if (double.TryParse(Console.ReadLine(), out double nbNewVal))
                                 sensAnalyzer.ApplyNonBasicVariableChange(nbVarIndex, nbNewVal);
@@ -138,7 +245,7 @@ namespace LinearProgrammingSolver.App
                         Console.Write("Enter Basic Variable Index: ");
                         if (int.TryParse(Console.ReadLine(), out int bVarIndex))
                         {
-                            sensAnalyzer.DisplayBasicVariableRange(bVarIndex, dummyObjectiveRow, dummyMatrix);
+                            sensAnalyzer.DisplayBasicVariableRange(bVarIndex, realObjectiveRow, realFinalTableau);
                             Console.Write("Enter new coefficient value to apply change: ");
                             if (double.TryParse(Console.ReadLine(), out double bNewVal))
                                 sensAnalyzer.ApplyBasicVariableChange(bVarIndex, bNewVal);
@@ -149,20 +256,25 @@ namespace LinearProgrammingSolver.App
                         Console.Write("Enter Constraint Index: ");
                         if (int.TryParse(Console.ReadLine(), out int constraintIndex))
                         {
-                            sensAnalyzer.DisplayRHSRange(constraintIndex, dummyObjectiveRow, dummyMatrix);
+                            double[] originalRHS = new double[currentModel.Constraints.Count];
+                            for (int i = 0; i < currentModel.Constraints.Count; i++)
+                            {
+                                originalRHS[i] = currentModel.Constraints[i].RHS;
+                            }
+
+                            sensAnalyzer.DisplayRHSRange(constraintIndex, originalRHS, realInverseBasis);
                             Console.Write("Enter new RHS value to apply change: ");
                             if (double.TryParse(Console.ReadLine(), out double newRHS))
-                                sensAnalyzer.ApplyRHSChange(constraintIndex, newRHS);
+                                sensAnalyzer.ApplyRHSChange(constraintIndex, newRHS, originalRHS, realInverseBasis);
                         }
                         Pause();
                         break;
                     case "4":
-                        sensAnalyzer.DisplayShadowPrices(dummyObjectiveRow);
+                        sensAnalyzer.DisplayShadowPrices(realObjectiveRow);
                         Pause();
                         break;
                     case "5":
                         Console.WriteLine("Capturing new activity data...");
-                        // In reality we will loop to get all coefficients but we'll pass dummies for the shell
                         sensAnalyzer.AddNewActivity(new double[] { 1, 2, 3 }, 50);
                         Pause();
                         break;
@@ -172,9 +284,21 @@ namespace LinearProgrammingSolver.App
                         Pause();
                         break;
                     case "7":
-                        object dualModel = dualAnalyzer.ConstructDualModel(null); // Passes dummy null for now
-                        dualAnalyzer.SolveDualModel(dualModel);
-                        dualAnalyzer.VerifyDuality(150.5, 150.5); // Hardcoded test values
+                        //Construct the Dual
+                        LinearProgram dualModel = dualAnalyzer.ConstructDualModel(currentModel);
+                        //Solve the Dual using Simplex Engine
+                        Console.WriteLine("\n[Solving Dual Model...]");
+                        PrimalSimplexSolver dualSolver = new PrimalSimplexSolver(writer);
+                        SolverResult dualResult = dualSolver.Solve(dualModel);
+                        //Compare the real primal objective value against the dual to verify Duality
+                        if (dualResult != null && dualResult.Status == SolutionStatus.Optimal)
+                        {
+                            dualAnalyzer.VerifyDuality(globalResult.OptimalValue, dualResult.OptimalValue);
+                        }
+                        else
+                        {
+                            Console.WriteLine("Could not solve the Dual model optimally.");
+                        }
                         Pause();
                         break;
                     case "8":

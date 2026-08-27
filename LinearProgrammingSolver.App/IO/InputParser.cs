@@ -1,89 +1,72 @@
 ﻿using System;
 using System.IO;
+using System.Collections.Generic;
+using LinearProgrammingSolver.Core.Models;
 
-namespace LinearProgrammingSolver.App.UI
+namespace LinearProgrammingSolver.App.IO
 {
     public class InputParser
     {
-        public void ParseFile(string filePath)
+        public LinearProgram ParseFile(string filePath)
         {
-            if (!File.Exists(filePath))
-            {
-                Console.WriteLine($"Error: File not found at {filePath}");
-                return;
-            }
+            if (!File.Exists(filePath)) return null;
 
             string[] lines = File.ReadAllLines(filePath);
+            LinearProgram lp = new LinearProgram();
 
-            if (lines.Length < 3)
-            {
-                Console.WriteLine("Error: Invalid file format.");
-                return;
-            }
+            // Map Objective
+            lp.Objective = ParseObjectiveFunction(lines[0]);
 
-            ParseObjectiveFunction(lines[0]);
-
+            // Map Constraints
             for (int i = 1; i < lines.Length - 1; i++)
             {
-                ParseConstraint(lines[i]);
+                var constraint = ParseConstraint(lines[i], i);
+                if (constraint != null) lp.Constraints.Add(constraint);
             }
 
-            ParseSignRestrictions(lines[lines.Length - 1]);
+            // The Sign Restrictions (Last Line) would map to the variables here
+
+            return lp;
         }
 
-        //Objective Function Helper
-        private void ParseObjectiveFunction(string line)
+        private ObjectiveFunction ParseObjectiveFunction(string line)
         {
             string[] tokens = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            if (tokens.Length < 3) return;
+            ObjectiveType type = tokens[0].ToLower() == "max" ? ObjectiveType.Maximize : ObjectiveType.Minimize;
 
-            Console.WriteLine($"\n--- Parsing Objective: {tokens[0].ToUpper()} ---");
-
+            List<double> coeffs = new List<double>();
             for (int i = 1; i < tokens.Length; i += 2)
             {
                 if (i + 1 >= tokens.Length) break;
-
-                string sign = tokens[i];
-                if (double.TryParse(tokens[i + 1], out double coefficient))
+                if (double.TryParse(tokens[i + 1], out double val))
                 {
-                    if (sign == "-") coefficient *= -1;
-                    Console.WriteLine($"Obj Coefficient: {coefficient}");
+                    coeffs.Add(tokens[i] == "-" ? -val : val);
                 }
             }
+            return new ObjectiveFunction(type, coeffs);
         }
 
-        //Constraint Helper
-        private void ParseConstraint(string line)
+        private Constraint ParseConstraint(string line, int index)
         {
             string[] tokens = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            if (tokens.Length < 4) return;
+            if (tokens.Length < 4) return null;
 
-            string rhsString = tokens[tokens.Length - 1];
-            string relation = tokens[tokens.Length - 2];
+            double rhs = double.Parse(tokens[tokens.Length - 1]);
+            string relString = tokens[tokens.Length - 2];
 
-            Console.WriteLine($"\n--- Parsing Constraint (Relation: {relation}, RHS: {rhsString}) ---");
+            Relation rel = Relation.Equal;
+            if (relString == "<=") rel = Relation.LessThanOrEqual;
+            if (relString == ">=") rel = Relation.GreaterThanOrEqual;
 
+            List<double> coeffs = new List<double>();
             for (int i = 0; i < tokens.Length - 2; i += 2)
             {
-                string sign = tokens[i];
-                if (double.TryParse(tokens[i + 1], out double coefficient))
+                if (double.TryParse(tokens[i + 1], out double val))
                 {
-                    if (sign == "-") coefficient *= -1;
-                    Console.WriteLine($"Constraint Coefficient: {coefficient}");
+                    coeffs.Add(tokens[i] == "-" ? -val : val);
                 }
             }
-        }
-
-        //Sign Restrictions Helper
-        private void ParseSignRestrictions(string line)
-        {
-            string[] restrictions = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            Console.WriteLine("\n--- Parsing Sign Restrictions ---");
-
-            for (int i = 0; i < restrictions.Length; i++)
-            {
-                Console.WriteLine($"Variable {i + 1}: {restrictions[i]}");
-            }
+            return new Constraint($"C{index}", coeffs, rel, rhs);
         }
     }
 }

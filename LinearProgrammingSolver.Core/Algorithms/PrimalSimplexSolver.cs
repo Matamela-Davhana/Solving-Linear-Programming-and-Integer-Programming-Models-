@@ -1,65 +1,68 @@
 using System;
 using System.Collections.Generic;
-using System.Text;
+using LinearProgrammingSolver.Core.IO; //using the interface
+using LinearProgrammingSolver.Core.Models;
+using LinearProgrammingSolver.Core.Results;
 
-namespace LinearProgrammingSolver.Core
+namespace LinearProgrammingSolver.Core.Algorithms
 {
-    //solves a linear programming question using Primal Simplex algorithm.
+    // Solves a linear programming problem using Primal Simplex algorithm.
     public class PrimalSimplexSolver
     {
-        private readonly Outwriter writer;
+        private readonly IOutputWriter _writer;
 
-        public PrimalSimplexSolver(OutputWriter writer)
+        public PrimalSimplexSolver(IOutputWriter writer)
         {
-            this.writer = writer;
+            _writer = writer;
         }
 
-        public SolverResult Solve(LinearProgrammingSolver lp)
+        public SolverResult Solve(LinearProgram lp)
         {
-            writer.WriteHeader("Primal Simplex Solver");
+            _writer.WriteHeader("Primal Simplex Solver");
 
-            //trigger the canonical from conversion
+            // Trigger canonical form conversion
             lp.ConvertToCanonicalForm();
 
             int numVars = lp.NumDecisionVariables;
             int numConstraints = lp.NumConstraints;
-            int totalCol = lp.variables.Count + 1; //columns for all variables including the RHS
-            int totalRows = numConstraints + 1; //rows from z with all constraint rows
+            int totalCols = lp.Variables.Count + 1; // Columns for all variables including RHS
+            int totalRows = numConstraints + 1;    // Objective row (Z) + constraint rows
 
-            double[,] tableau = new double[totalRows, totalCol];
+            double[,] tableau = new double[totalRows, totalCols];
 
-            //populating obj
-            for(int i = 0; i < numVars; i++)
+            // Populate Objective Row (Row 0)
+            for (int j = 0; j < numVars; j++)
             {
-                tableau[0, j] = (lp.objective.Type == ObjectiveType.Maximize)
-                    ? -lp.Objective.Coefficients[i] : lp.Objective.Coefficients[i];
+                tableau[0, j] = (lp.Objective.Type == ObjectiveType.Maximize)
+                    ? -lp.Objective.Coefficients[j]
+                    : lp.Objective.Coefficients[j];
             }
 
-            //populating constraints
-            for (int i = 0; i < numConstraints; i++) 
+            // Populate Constraints Matrix
+            for (int i = 0; i < numConstraints; i++)
             {
-                var constraints = lp.Constraints[i];
+                var constraint = lp.Constraints[i];
 
-                for(int j = 0; j < constraints.Coefficients.Count; j++)
+                for (int j = 0; j < constraint.Coefficients.Count; j++)
                 {
-                    tableau[i + 1, j] = constraints.Coefficients[j];
+                    tableau[i + 1, j] = constraint.Coefficients[j];
                 }
 
-                //rhs value
-                tableau[i + 1, totalCol - 1] = constraints.RHS;
+                // RHS value
+                tableau[i + 1, totalCols - 1] = constraint.RHS;
             }
 
-            //adding slack, surplus, artificial variables into table
+            // Add Slack, Surplus, and Artificial variables into Tableau
             int varIndex = numVars;
-            for(int i = 0; i < numConstraints; i++)
+            for (int i = 0; i < numConstraints; i++)
             {
-                var c =lp.Constraints[i];
+                var c = lp.Constraints[i];
 
                 if (c.Relation == Relation.LessThanOrEqual)
                 {
-                    tableau[i + 1, varIndex++] = 1.0; //for slack variable
+                    tableau[i + 1, varIndex++] = 1.0; // Slack variable
                 }
-                else if (c.Relation == Relation.GreaterThanOrEqual) 
+                else if (c.Relation == Relation.GreaterThanOrEqual)
                 {
                     tableau[i + 1, varIndex++] = -1.0; // Surplus
                     tableau[i + 1, varIndex++] = 1.0;  // Artificial
@@ -70,10 +73,10 @@ namespace LinearProgrammingSolver.Core
                 }
             }
 
-            //log canonical Form table
-            writer.WriteTableau("Canonical Form/ Initial Tableau", tableau);
+            // Log Initial Canonical Form Tableau
+            _writer.WriteTableau("Canonical Form / Initial Tableau", tableau);
 
-            //Pivoting
+            // Pivoting Execution Loop
             int iteration = 0;
             while (true)
             {
@@ -118,11 +121,11 @@ namespace LinearProgrammingSolver.Core
 
                 if (pivotRow == -1)
                 {
-                    writer.WriteHeader("Result: Solution is UNBOUNDED");
+                    _writer.WriteHeader("Result: Solution is UNBOUNDED");
                     return new SolverResult { Status = SolutionStatus.Unbounded };
                 }
 
-                // Pivot Elimination
+                // Pivot Elimination (Gauss-Jordan)
                 double pivotVal = tableau[pivotRow, pivotCol];
                 for (int j = 0; j < totalCols; j++)
                     tableau[pivotRow, j] /= pivotVal;
@@ -179,14 +182,14 @@ namespace LinearProgrammingSolver.Core
                 }
             }
 
-            // Extract Inverse Basis (B^-1) for Member 2 Sensitivity Analysis
-            double[][] inverseBasis = new double[numConstraints][];
+            // Extract Inverse Basis Matrix (B^-1) for Sensitivity Analysis
+            double[,] inverseBasis = new double[numConstraints, numConstraints];
             for (int i = 0; i < numConstraints; i++)
             {
                 inverseBasis[i] = new double[numConstraints];
                 for (int j = 0; j < numConstraints; j++)
                 {
-                    inverseBasis[i][j] = tableau[i + 1, lp.NumDecisionVariables + j];
+                    inverseBasis[i,j] = tableau[i + 1, lp.NumDecisionVariables + j];
                 }
             }
 
