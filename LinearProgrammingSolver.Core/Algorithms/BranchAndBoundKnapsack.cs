@@ -1,458 +1,396 @@
 using System;
 using System.Collections.Generic;
-using LinearProgrammingSolver.Core.Algorithms;
+using System.Linq;
 using LinearProgrammingSolver.Core.Models;
+using LinearProgrammingSolver.Core.Results;
 
-namespace BranchAndBoundKnapsack
+namespace LinearProgrammingSolver.Core.Algorithms
 {
     public class BnBKnapsack
     {
-        //constant
-        private const double EPSILON = 1e-9;
+        private const double EPSILON = 1e-6;
+        private readonly PrimalSimplexSolver _simplexSolver;
+        private readonly List<SubProblem> _subProblems = new List<SubProblem>();
+        private double _bestObjectiveValue;
+        private double[] _bestVariableValues = Array.Empty<double>();
+        private SubProblem? _bestSubProblem;
+        private bool _isMaximize;
 
-//input here        //result
+        public class SubProblem
+        {
+            public string Number { get; set; }
+            public string ParentNumber { get; set; }
+            public LinearProgram Model { get; set; }
+            public double ObjectiveValue { get; set; }
+            public double[] VariableValues { get; set; }
+            public bool IsBranched { get; set; }
+            public string BranchedBy { get; set; }
+            public string BranchDescription { get; set; }
+
+            public SubProblem(string number, string parentNumber, LinearProgram model, string branchDescription)
+            {
+                Number = number;
+                ParentNumber = parentNumber;
+                Model = model;
+                ObjectiveValue = 0.0;
+                VariableValues = Array.Empty<double>();
+                IsBranched = false;
+                BranchedBy = "";
+                BranchDescription = branchDescription;
+            }
+        }
+
         public class Result
         {
-            public bool IsOptimal { get; set; }
-            public double OptimalProfit { get; set; }
-            public double TotalWeight { get; set; }
-            public bool[] Selected { get; set; }
-            public int[] SelectedItemIndex { get; set; }
-            public int SubProblemsCreated { get; set; }
-            public int SubProblemsDone { get; set; }
-            public int SubProblemsBranched { get; set; }
+            public SolutionStatus Status { get; set; }
+            public double OptimalValue { get; set; }
+            public double[] VariableValues { get; set; }
             public SubProblem? BestSubProblem { get; set; }
 
             public Result()
             {
-                Selected = Array.Empty<bool>();
-                SelectedItemIndex = Array.Empty<int>();
+                VariableValues = Array.Empty<double>();
             }
         }
 
-        //sort items
-        private class SortedItems
+        public BnBKnapsack(PrimalSimplexSolver simplexSolver)
         {
-            public Item Item { get; set; } = null!;
-            public int OriginalIndex { get; set; }
+            _simplexSolver = simplexSolver;
         }
 
-        //private
-        private List<Item> _items = new List<Item>();
-        private double _capacity;
-        private double _bestWeight;
-        private double _bestProfit;
-        private List<int> _bestItems = new List<int>();
-        private readonly List<SubProblem> _allSubProblems = new List<SubProblem>();
-
-        //public
-        public IReadOnlyList<SubProblem> AllSubProblems => _allSubProblems;
-        public SubProblem? BestSubProblem { get; private set; }
-
-        public BnBKnapsack(List<Item> items, double capacity)
+        public Result Solve(LinearProgram initialModel)
         {
-            ValidateInput(items, capacity);
-            _items = new List<items>(items);
-            _capacity = capacity;
-        }
+            ValidateKnapsack(initialModel);
+            _subProblems.Clear();
+            _bestSubProblem = null;
+            _bestVariableValues = Array.Empty<double>();
 
-        //solve
-        public Result Solve()
-        {
-            //reset
-            _allSubProblems.Clear();
-            _bestItems.Clear();
-            _bestWeight = 0.0;
-            _bestProfit = 0.0;
-            BestSubProblem = null;
+            ObjectiveFunction objective = initialModel.Objective;
+            _isMaximize = objective.Type == ObjectiveType.Maximize;
+            Constraint knapsackConstraint = initialModel.Constraints[0];
+            
+            double[] profits = objective.Coefficients.ToArray();
+            double[] weights = knapsackConstraint.Coefficients.ToArray();
+            double capacity = knapsackConstraint.RHS;
 
-            //ratio order
-            var sortedItems = _items.Select((items, index) => new SortedItem
+            // These are obtained directly from the LP.
+            // They are not recreated by BnBKnapsack.
+
+            Console.WriteLine();
+            Console.WriteLine("Knapsack Problem");
+            Console.WriteLine("----------------------------");
+            Console.WriteLine();
+            Console.WriteLine($"Objective Type : {objective.Type}");
+            Console.WriteLine($"Capacity = {capacity}");
+            Console.WriteLine("Profits = " + string.Join(", ", profits));
+            Console.WriteLine("Weights = " + string.Join(", ", weights));
+            Console.WriteLine();
+
+            _bestObjectiveValue = _isMaximize ? double.NegativeInfinity : double.PositiveInfinity;
+
+            var root =
+                new SubProblem("0", "", initialModel.Clone(), "Root Subproblem");
+
+            var stack = new Stack<SubProblem>();
+            stack.Push(root);
+
+            while (stack.Count > 0)
             {
-                Item = items,
-                OriginalIndex = index
-            })
-            .OrderByDescending(x => x.Item.Ratio).ToList();
-        }
+                SubProblem current = stack.Pop();
 
-        //root = 0
-        var root = new SubProblem(number: "0", parentNumber: "", level: 0, branchItemIndex: -1, weight: 0.0,
-                                  profit: 0.0, selectedItems: new List<int>(), branchDescription: "Root Subproblem");
+                LinearProgram relaxation = CreateRelaxation(current.Model);
+                SolverResult? lpResult = _simplexSolver.Solve(relaxation);
 
-        root.UpperBound = CalculateUpperBound(root, SortedItems);
+                if (lpResult == null || lpResult.Status == SolutionStatus.Infeasible)
+                {
+                    current.IsBranched = true;
+                    current.BranchedBy = "Infeasible";
+                    _subProblems.Add(current);
+                    continue;
+                }
 
-        //first
-        var stack = new Stack<SubProblem>();
-        Stack.Push(root);
+                if (lpResult.Status == SolutionStatus.Unbounded)
+                {
+                    current.IsBranched = true;
+                    current.BranchedBy = "Unbounded";
+                    _subProblems.Add(current);
+                    continue;
+                }
 
-        int created = 1;
-        int done = 0;
-        int branched = 0;
+                current.ObjectiveValue = lpResult.OptimalValue;
+                current.VariableValues = lpResult.VariableValues;
 
-        //main loop
-        while(Stack.Count>0)
-        {
-            var current = Stack.Pop();
-            done++;
+                if (_bestSubProblem != null)
+                {
+                    if (_isMaximize && current.ObjectiveValue <= _bestObjectiveValue + EPSILON)
+                    {
+                        current.IsBranched = true;
+                        current.BranchedBy = "Bound";
+                        _subProblems.Add(current);
+                        continue;
+                    }
 
-            if(current.UpperBound<= _bestProfit+EPSILON)
-            {
-              current.ContinueBranching = true;
-              current.BranchReason = "Upper bound <= current";
-              _allSubProblems.Add(current);
-             branched++;
-             continue;
-            }
-           
-            if(current.Level>= sortedItems.Count)
-             {
-              current.ContinueBranching = true;
-              current.BranchReason = "Complete solution";
-              UpdateBestSolution(current);
-              _allSubProblems.Add(current);
-              branched++;
-              continue;
-             }
+                    if (!_isMaximize && current.ObjectiveValue >= _bestObjectiveValue - EPSILON)
+                    {
+                        current.IsBrancheded = true;
+                        current.BranchedBy = "Bound";
+                        _subProblems.Add(current);
+                        continue;
+                    }
+                }
 
-          // add sbproblem current
-          _allSubProblems.Add(current);
+                int fractionalIndex = FindFractionalBinaryVariable(current.Model, current.VariableValues);
 
-         // branching item
-         var item = sortedItems[current.Level];
+                if (fractionalIndex == -1)
+                {
+                    current.IsBranched = true;
+                    current.BranchedBy = "Binary Feasible";
+                    UpdateBestSolution(current);
+                    _subProblems.Add(current);
+                    continue;
+                }
 
-         // child 1
-          string includeNumber;
+                string variableName = current.Model.Variables[fractionalIndex].Name;
 
-          if (current.Number == "0")
-          {
-             includeNumber = "1";
-          }
-          else
-          {
-             includeNumber = current.Number + ".1";
-          }
+                string childOneNumber = GetChildNumber(current.Number, 1);
+                LinearProgram childOneModel = current.Model.Clone();
 
-          double includeWeight = current.Weight + item.Item.Weight;
-          double includeProfit = current.Profit + item.Item.Profit;
-          var includeItems = new List<int>(current.SelectedItems);
-          includeItems.Add(item.OriginalIndex);
+                childOneModel.Constraints.Add(CreateBinaryBranchConstraint(childOneModel.NumDecisionVariables,
+                        fractionalIndex, 0, $"Branch_{variableName}_EQ_0"));
 
-          var includeSubProblem =
-           new SubProblem(
-            number: includeNumber,
-            parentNumber: current.Number,
-            level: current.Level + 1,
-            branchItemIndex: item.OriginalIndex,
-            weight: includeWeight,
-            profit: includeProfit,
-            selectedItems: includeItems,
-            branchDescription: $"Include {item.Item.Name} " + $"(x{item.OriginalIndex + 1} = 1)"
-            );
+                var childOne = new SubProblem(childOneNumber, current.Number, childOneModel, $"{variableName} = 0");
 
-            created++;
+                string childTwoNumber = GetChildNumber(current.Number, 2);
+                LinearProgram childTwoModel = current.Model.Clone();
 
-          // capacity check
-          if (includeWeight >_capacity + EPSILON)
-          {
-              includeSubProblem.ContinueBranching = true;
-              includeSubProblem.BranchReason = "Capacity exceeded";
-              includeSubProblem.UpperBound = double.NegativeInfinity;
-              _allSubProblems.Add(includeSubProblem);
-              branched++;
-          }
-         
-          else
-          {
-              UpdateBestSolution(includeSubProblem);
+                childTwoModel.Constraints.Add(CreateBinaryBranchConstraint(childTwoModel.NumDecisionVariables,
+                        fractionalIndex, 1,"Branch_{variableName}_EQ_1"));
 
-           //calculate upper bound
-           includeSubProblem.UpperBound = CalculateUpperBound(includeSubProblem, sortedItems);
+                var childTwo = new SubProblem(childTwoNumber, current.Number, childTwoModel, $"{variableName} = 1");
 
-           //branch
-           if (includeSubProblem.UpperBound >_bestProfit + EPSILON)
-           {
-              stack.Push(includeSubProblem);
-           }
-           else
-           {
-              includeSubProblem.ContinueBranching = true;
-              includeSubProblem.BranchReason = "Upper bound <= current";
-              _allSubProblems.Add(includeSubProblem);
-              branched++;
-           }
-          }
+                stack.Push(childTwo);
+                stack.Push(childOne);
 
-        //child 2
-        string excludeNumber;
-
-        if (current.Number == "0")
-        {
-            excludeNumber = "2";
-        }
-        else
-        {
-            excludeNumber =  current.Number + ".2";
-        }
-
-        var excludeSubProblem =
-        new SubProblem(
-         number: excludeNumber,
-         parentNumber: current.Number,
-         level: current.Level + 1,
-         branchItemIndex: item.OriginalIndex,
-         weight: current.Weight,
-         profit: current.Profit,
-         selectedItems: new List<int>(current.SelectedItems),
-         branchDescription: $"Exclude {item.Item.Name} " + $"(x{item.OriginalIndex + 1} = 0)"
-         );
-
-        created++;
-
-        excludeSubProblem.UpperBound = CalculateUpperBound(excludeSubProblem, sortedItems);
-
-        if (excludeSubProblem.UpperBound >_bestProfit + EPSILON)
-        {
-            stack.Push(excludeSubProblem);
-        }
-        else
-        {
-            excludeSubProblem.ContinueBranching = true;
-            excludeSubProblem.BranchReason = "Upper bound <= current";
-            _allSubProblems.Add(excludeSubProblem);
-            branched++;
-        }
-      }
-
-        //final result
-       var selected = new bool[_items.Count];
-
-       foreach (int index in _bestItems)
-       {
-         selected[index] = true;
-       }
-
-       return new Result
-       {
-          IsOptimal = true,
-          OptimalProfit = _bestProfit,
-          TotalWeight = _bestWeight,
-          Selected = selected,
-          SelectedItemIndex = _bestItems.ToArray(),
-          SubProblemsCreated = created,
-          SubProblemsDone = done,
-          SubProblemsBranched = branched,
-          BestSubProblem = BestSubProblem
-       };
-     }
-
-     //calculate next subproblem
-        private double CalculateUpperBound(SubProblem subProblem, List<SortedItem> sortedItems)
-        {
-           if (subProblem.Weight >_capacity + EPSILON)
-           {
-               return double.NegativeInfinity;
-           }
-
-           double bound = subProblem.Profit;
-           double remainingCapacity = _capacity - subProblem.Weight;
-
-           //next item
-           for (int i = subProblem.Level; i < sortedItems.Count; i++)
-           {
-              var item = sortedItems[i].Item;
-
-              //no weight
-              if (item.Weight <= EPSILON)
-              {
-                 bound += item.Profit;
-                 continue;
-              }
-
-              //fits?
-              if (item.Weight <= remainingCapacity + EPSILON)
-              {
-                 remainingCapacity -= item.Weight;
-                 bound += item.Profit;
-              }
-              
-              else
-              {
-                 //fraction fits
-                 bound += item.Profit * (remainingCapacity / item.Weight);
-                 break;
-              }
-           }
-
-           return bound;
-        }
-
-     //update best solution
-     private void UpdateBestSolution(SubProblem subProblem)
-     {
-        if (subProblem.Weight > _capacity + EPSILON)
-        {
-           return;
-        }
-
-        if (subProblem.Profit > _bestProfit + EPSILON)
-        {
-           _bestProfit = subProblem.Profit;
-           _bestWeight = subProblem.Weight;
-           _bestItems = new List<int>(subProblem.SelectedItems);
-           BestSubProblem = subProblem;
-        }
-     }
-
-     //validate input
-     private void ValidateInput(List<Item> items, double capacity)
-     {
-        if (items == null)
-        {
-            throw new ArgumentNullException(nameof(items));
-        }
-
-        if (capacity < 0)
-        {
-           throw new ArgumentException("Knapsack capacity cannot be negative.");
-        }
-
-        foreach (var item in items)
-        {
-            if (item == null)
-            {
-               throw new ArgumentException("Item cannot be null.");
+                // The current subproblem was branched.
+                current.IsBranched = true;
+                current.BranchedBy = "Branched";
+                _subProblems.Add(current);
             }
 
-           if (item.Weight < 0)
-           {
-              throw new ArgumentException($"Item '{item.Name}' " + "has negative weight.");
-           }
+            if (_bestSubProblem == null)
+            {
+                return new Result
+                {
+                    Status = SolutionStatus.Infeasible,
+                    OptimalValue = double.NaN,
+                    VariableValues = Array.Empty<double>(),
+                    BestSubProblem = null
+                };
+            }
 
-           if (item.Profit < 0)
-           {
-               throw new ArgumentException($"Item '{item.Name}' " + "has negative profit.");
-           }
-        }
-     }
-
-     //display
-     public void PrintResult(Result result)
-     {
-         Console.WriteLine();
-         Console.WriteLine("============================================================");
-         Console.WriteLine("              BRANCH AND BOUND KNAPSACK");
-         Console.WriteLine("============================================================");
-         Console.WriteLine($"Status                : " + $"{(result.IsOptimal ? "Optimal" : "Not Optimal")}");
-         Console.WriteLine($"Optimal Profit        : " + $"{result.OptimalProfit:F2}");
-         Console.WriteLine($"Total Weight          : " + $"{result.TotalWeight:F2}");
-         Console.WriteLine($"Capacity              : " + $"{_capacity:F2}");
-         Console.WriteLine($"Subproblems Created : " + $"{result.SubProblemsCreated}");
-         Console.WriteLine($"Subproblems Done  : " + $"{result.SubProblemsDone}");
-         Console.WriteLine($"Subproblems Branched  : " + $"{result.SubProblemsBranched}");
-
-        if (result.BestSubProblem != null)
-        {
-           Console.WriteLine($"Best Subproblem       : " + $"{result.BestSubProblem.Number}");
+            return new Result
+            {
+                Status = SolutionStatus.Optimal,
+                OptimalValue = _bestObjectiveValue,
+                VariableValues = _bestVariableValues,
+                BestSubProblem = _bestSubProblem
+            };
         }
 
-       //selected items
-       Console.WriteLine();
-       Console.WriteLine("Selected Items:");
-       Console.WriteLine("------------------------------------------------------------");
-       Console.WriteLine(
-        $"{"Item",-12}" +
-        $"{"Selected",-12}" +
-        $"{"Weight",-12}" +
-        $"{"Profit",-12}" +
-        $"{"Ratio",-12}");
-       Console.WriteLine("------------------------------------------------------------");
-
-        for (int i = 0; i < _items.Count; i++)
+        private LinearProgram CreateRelaxation(LinearProgram model)
         {
-            string selected = result.Selected[i]? "Yes": "No";
+            LinearProgram relaxation = model.Clone();
+
+            foreach (Variable variable in relaxation.Variables)
+            {
+                if (variable.Type == VariableType.Decision && variable.Restriction == SignRestriction.Binary)
+                {
+                    variable.Restriction = SignRestriction.Positive;
+                    variable.LowerBound = 0.0;
+                    variable.UpperBound = 1.0;
+                }
+            }
+            return relaxation;
+        }
+
+        private int FindFractionalBinaryVariable(LinearProgram model, double[] values)
+        {
+            for (int i = 0; i < model.NumDecisionVariables; i++)
+            {
+                Variable variable = model.Variables[i];
+
+                if (variable.Restriction != SignRestriction.Binary)
+                {
+                    continue;
+                }
+
+                double value = values[i];
+                bool isZero = Math.Abs(value) <= EPSILON;
+                bool isOne = Math.Abs(value - 1.0) <= EPSILON;
+
+                if (!isZero && !isOne)
+                {
+                    return i;
+                }
+            }
+            return -1;
+        }
+
+        private Constraint CreateBinaryBranchConstraint(int variableCount, int variableIndex, int value, string name)
+        {
+            var coefficients = new List<double>(new double[variableCount]);
+            coefficients[variableIndex] = 1.0;
+
+            return new Constraint( name, coefficients, Relation.Equal, value);
+        }
+
+        private string GetChildNumber(string parentNumber, int childNumber)
+        {
+            if (parentNumber == "0")
+            {
+                return childNumber.ToString();
+            }
+
+            return parentNumber + "." + childNumber;
+        }
+
+        private void UpdateBestSolution(SubProblem subProblem)
+        {
+            double value = subProblem.ObjectiveValue;
+            bool better;
+
+            if (_bestSubProblem == null)
+            {
+                better = true;
+            }
+            else if (_isMaximize)
+            {
+                better = value > _bestObjectiveValue + EPSILON;
+            }
+            else
+            {
+                better = value < _bestObjectiveValue - EPSILON;
+            }
+            if (!better)
+            {
+                return;
+            }
+
+            _bestObjectiveValue = value;
+            _bestVariableValues = subProblem.VariableValues.Take(subProblem.Model.NumDecisionVariables).ToArray();
+            _bestSubProblem = subProblem;
+        }
+
+        private void ValidateKnapsack(LinearProgram model)
+        {
+            if (model == null)
+            {
+                throw new ArgumentNullException(nameof(model));
+            }
+
+            if (model.Objective == null)
+            {
+                throw new ArgumentException(Objective function is required.");
+            }
+
+            if (model.Objective.Type != ObjectiveType.Maximize)
+            {
+                throw new ArgumentException("Binary knapsack must be a maximization problem.");
+            }
+
+            if (model.Constraints.Count != 1)
+            {
+                throw new ArgumentException("Binary knapsack must have exactly one constraint.");
+            }
+
+            Constraint constraint = model.Constraints[0];
+
+            if (constraint.Relation != Relation.LessThanOrEqual)
+            {
+                throw new ArgumentException("Knapsack constraint must use <=.");
+            }
+
+            if (constraint.RHS < 0)
+            {
+                throw new ArgumentException("Knapsack capacity cannot be negative.");
+            }
+
+            if (constraint.Coefficients.Count != model.NumDecisionVariables)
+            {
+                throw new ArgumentException("Number of constraint coefficients " + "must match number of decision variables.");
+            }
+
+            for (int i = 0; i < model.NumDecisionVariables; i++)
+            {
+                Variable variable = model.Variables[i];
+
+                if (variable.Restriction != SignRestriction.Binary)
+                {
+                    throw new ArgumentException($"{variable.Name} must be Binary.");
+                }
+
+                if (constraint.Coefficients[i] < 0)
+                {
+                    throw new ArgumentException($"Weight for {variable.Name} " + "cannot be negative.");
+                }
+            }
+        }
+
+        public void PrintResult(
+            Result result)
+        {
+            Console.WriteLine();
+            Console.WriteLine("==============================================================");
+            Console.WriteLine("                   FINAL SOLUTION");
+            Console.WriteLine("==============================================================");
+            Console.WriteLine($"Status             : {result.Status}");
+
+            if (result.Status == SolutionStatus.Optimal)
+            {
+                Console.WriteLine($"Optimal Z          : " + $"{result.OptimalValue:F2}");
+
+                if (result.BestSubProblem != null)
+                {
+                    Console.WriteLine($"Optimal Subproblem : " + $"{result.BestSubProblem.Number}");
+                }
+
+                Console.WriteLine();
+                Console.WriteLine("Selected Items");
+                Console.WriteLine("--------------------------------------------------------------");
+
+                for (int i = 0; i < result.VariableValues.Length; i++)
+                {
+                    Console.WriteLine($"x{i + 1} = " + $"{result.VariableValues[i]:F0}");
+                }
+            }
+
+            Console.WriteLine();
+            Console.WriteLine("BRANCH-AND-BOUND SUBPROBLEMS");
+            Console.WriteLine("================================================================================================");
             Console.WriteLine(
-            $"{_items[i].Name,-12}" +
-            $"{selected,-12}" +
-            $"{_items[i].Weight,-12:F2}" +
-            $"{_items[i].Profit,-12:F2}" +
-            $"{_items[i].Ratio,-12:F2}");
+                $"{"Subproblem",-14}" +
+                $"{"Parent",-14}" +
+                $"{"LP Bound",-14}" +
+                $"{"Branched",-14}" +
+                $"{"Reason",-25}" +
+                $"{"Branch",-25}");
+            Console.WriteLine("================================================================================================");
+
+            foreach (SubProblem subProblem in _subProblems)
+            {
+                Console.WriteLine(
+                    $"{subProblem.Number,-14}" +
+                    $"{(string.IsNullOrEmpty(subProblem.ParentNumber) ? "-" : subProblem.ParentNumber),-14}" +
+                    $"{subProblem.ObjectiveValue,-14:F2}" +
+                    $"{subProblem.IsBranched,-14}" +
+                    $"{subProblem.BranchedBy,-25}" +
+                    $"{subProblem.BranchDescription,-25}");
+            }
+
+            Console.WriteLine();
+            Console.WriteLine("Branched means the subproblem does not need");
+            Console.WriteLine("to be explored further; it does NOT necessarily");
+            Console.WriteLine("mean that the subproblem itself is optimal.");
         }
-
-        //subproblems
-         Console.WriteLine();
-         Console.WriteLine("Subproblems:");
-         Console.WriteLine("====================================================================================================");
-         Console.WriteLine($"{"Subproblem",-14}" +
-           $"{"Parent",-14}" +
-           $"{"Level",-8}" +
-           $"{"Weight",-12}" +
-           $"{"Profit",-12}" +
-           $"{"Upper Bound",-15}" +
-           $"{"Status",-35}");
-        Console.WriteLine("====================================================================================================");
-
-         foreach (var subProblem in GetSubProblemsInTreeOrder())
-         {
-             string status;
-
-             if (subProblem.ContinueBranching)
-             {
-                status = "Branched: " + subProblem.BranchReason;
-             }
-             else
-             {
-                status = "Branched";
-             }
-
-             Console.WriteLine(
-              $"{subProblem.Number,-14}" +
-              $"{subProblem.ParentNumber,-14}" +
-              $"{subProblem.Level,-8}" +
-              $"{subProblem.Weight,-12:F2}" +
-              $"{subProblem.Profit,-12:F2}" +
-              $"{subProblem.UpperBound,-15:F2}" +
-              $"{status,-35}");
-
-             Console.WriteLine($"    {subProblem.BranchDescription}");
-         }
-        
-       Console.WriteLine();
-       Console.WriteLine("============================================================");
-     }
-
-     //sort subproblems for display
-     private List<SubProblem> GetSubProblemsInTreeOrder()
-     {
-        return _allSubProblems.OrderBy(x => x.Number, new SubProblemNumberComparer()).ToList();
-     }
-
-     //subprobroblem numbers compared
-     private class SubProblemNumberComparer : IComparer<string>
-     {
-        public int Compare(string? x, string? y)
-        {
-            if (x == null && y == null)
-              return 0;
-
-            if (x == null)
-              return -1;
-
-            if (y == null)
-              return 1;
-
-           int[] xParts = x.Split('.').Select(int.Parse).ToArray();
-           int[] yParts = y.Split('.').Select(int.Parse).ToArray();
-           int length = Math.Min(xParts.Length,yParts.Length);
-
-           for (int i = 0; i < length; i++)
-           {
-               int comparison = xParts[i].CompareTo(yParts[i]);
-               if (comparison != 0)
-                 return comparison;
-           }
-
-           return xParts.Length.CompareTo(yParts.Length);
-        }
-     }
     }
 }
