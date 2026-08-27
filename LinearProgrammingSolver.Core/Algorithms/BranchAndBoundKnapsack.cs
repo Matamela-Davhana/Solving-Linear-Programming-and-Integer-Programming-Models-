@@ -88,8 +88,7 @@ namespace LinearProgrammingSolver.Core.Algorithms
 
             _bestObjectiveValue = _isMaximize ? double.NegativeInfinity : double.PositiveInfinity;
 
-            var root =
-                new SubProblem("0", "", initialModel.Clone(), "Root Subproblem");
+            var root = new SubProblem("0", "", initialModel.Clone(), "Root Subproblem");
 
             var stack = new Stack<SubProblem>();
             stack.Push(root);
@@ -164,7 +163,7 @@ namespace LinearProgrammingSolver.Core.Algorithms
                 LinearProgram childTwoModel = current.Model.Clone();
 
                 childTwoModel.Constraints.Add(CreateBinaryBranchConstraint(childTwoModel.NumDecisionVariables,
-                        fractionalIndex, 1,"Branch_{variableName}_EQ_1"));
+                        fractionalIndex, 1, $"Branch_{variableName}_EQ_1"));
 
                 var childTwo = new SubProblem(childTwoNumber, current.Number, childTwoModel, $"{variableName} = 1");
 
