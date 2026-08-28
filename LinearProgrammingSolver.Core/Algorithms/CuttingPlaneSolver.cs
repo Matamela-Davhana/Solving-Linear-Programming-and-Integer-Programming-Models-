@@ -228,9 +228,6 @@ namespace LinearProgrammingSolver.Core.Algorithms
                         return i;
                     }
                 }
-
-                if (!iterationData.CutAdded)
-                     break;
             }
             return -1;
         }
