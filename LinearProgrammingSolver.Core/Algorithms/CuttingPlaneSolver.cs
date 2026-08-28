@@ -144,16 +144,15 @@ namespace LinearProgrammingSolver.Core.Algorithms
             {
                 if (variable.Type == VariableType.Decision)
                 {
-                    if (variable.Restriction == SignRestriction.Integer ||  variable.Restriction == SignRestriction.Binary)
-                    {
-                        variable.Restriction = SignRestriction.Positive;
-                        variable.LowerBound = 0.0;
-
-                        if (variable.Restriction == SignRestriction.Binary)
-                        {
-                            variable.UpperBound = 1.0;
-                        }
-                    }
+                    var originalRestriction = variable.Restriction;
+                    if (originalRestriction == SignRestriction.Integer || originalRestriction == SignRestriction.Binary)
+                      {
+                         variable.Restriction = SignRestriction.Positive;
+                         variable.LowerBound = 0.0;
+                        
+                           if (originalRestriction == SignRestriction.Binary)
+                               variable.UpperBound = 1.0;
+                      }
                 }
             }
             return relaxation;
@@ -229,6 +228,9 @@ namespace LinearProgrammingSolver.Core.Algorithms
                         return i;
                     }
                 }
+
+                if (!iterationData.CutAdded)
+                     break;
             }
             return -1;
         }
